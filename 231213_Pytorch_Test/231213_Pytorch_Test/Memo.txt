@@ -1,0 +1,1084 @@
+# Pytorch 라이브러리 분석
+
+파이토치 공식 한국어 가이드 
+
+https://tutorials.pytorch.kr/beginner/basics/quickstart_tutorial.html
+
+3시간 파이토치 종결 강좌
+
+https://www.youtube.com/playlist?list=PL7ZVZgsnLwEEIC4-KQIchiPda_EjxX61r
+
+# 테스트 코드
+
+모듈 임포트
+
+```python
+#모듈 임포트
+import torch
+from torch import nn
+from torch.utils.data import DataLoader
+from torchvision import datasets
+from torchvision.transforms import ToTensor
+```
+
+테스트 데이터 다운로드
+
+```python
+# 공개 데이터셋에서 학습 데이터를 내려받습니다.
+training_data = datasets.FashionMNIST(
+    root="data",
+    train=True,
+    download=True,
+    transform=ToTensor(),
+)
+
+# 공개 데이터셋에서 테스트 데이터를 내려받습니다.
+test_data = datasets.FashionMNIST(
+    root="data",
+    train=False,
+    download=True,
+    transform=ToTensor(),
+)
+```
+
+데이터 로더 생성
+
+```python
+# 데이터로더를 생성합니다.
+ train_dataloader = DataLoader(training_data, batch_size=batch_size)
+ test_dataloader = DataLoader(test_data, batch_size=batch_size)
+
+ for X, y in test_dataloader:
+     print(f"Shape of X [N, C, H, W]: {X.shape}")
+     print(f"Shape of y: {y.shape} {y.dtype}")
+     break
+```
+
+연산 장치 설정
+
+```python
+#학습에 사용할 CPU나 GPU, MPS 장치를 얻습니다.
+    device = (
+        "cuda"
+        if torch.cuda.is_available()
+        else "mps"
+        if torch.backends.mps.is_available()
+        else "cpu"
+    )
+    print(f"Using {device} device")
+```
+
+모델 정의 및 설정
+
+```python
+# 모델을 정의합니다.
+class NeuralNetwork(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.flatten = nn.Flatten()
+        self.linear_relu_stack = nn.Sequential(
+            nn.Linear(28*28, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            nn.Linear(512, 10)
+        )
+
+    def forward(self, x):
+        x = self.flatten(x)
+        logits = self.linear_relu_stack(x)
+        return logits
+
+#모델 설정
+model = NeuralNetwork().to(device)
+print(model)
+    
+loss_fn = nn.CrossEntropyLoss()
+optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
+```
+
+훈련 실행
+
+```python
+#훈련 코드
+def train(dataloader, model, loss_fn, optimizer):
+    size = len(dataloader.dataset)
+    for batch, (X, y) in enumerate(dataloader):
+        X, y = X.to(device), y.to(device)
+
+        # 예측 오류 계산
+        pred = model(X)
+        loss = loss_fn(pred, y)
+
+        # 역전파
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        if batch % 100 == 0:
+            loss, current = loss.item(), (batch + 1) * len(X)
+            print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
+def test(dataloader, model, loss_fn):
+    size = len(dataloader.dataset)
+    num_batches = len(dataloader)
+    model.eval()
+    test_loss, correct = 0, 0
+    with torch.no_grad():
+        for X, y in dataloader:
+            X, y = X.to(device), y.to(device)
+            pred = model(X)
+            test_loss += loss_fn(pred, y).item()
+            correct += (pred.argmax(1) == y).type(torch.float).sum().item()
+    test_loss /= num_batches
+    correct /= size
+    print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+
+#훈련 시작
+epochs = 5
+for t in range(epochs):
+    print(f"Epoch {t+1}\n-------------------------------")
+    train(train_dataloader, model, loss_fn, optimizer)
+    test(test_dataloader, model, loss_fn)
+print("Done!")
+```
+
+# 텐서Tensor
+
+n차원의 데이터 집합이다. 0차원은 스칼라. 1차원은 벡터, 2차원은 행렬로 불리며 그보다 더 고차원의 텐서도 존재할 수 있다.
+
+AI에서는 각 노드의 가중치, bias값, 입력 등을 표현하는데 사용된다. 그러니까 꼭 알아야 되는개념!
+
+.to(device)로 장치간 이동 가능
+
+```python
+tensor.ndim = 차원 수
+tensor.shape = 내용?
+tensor.dtype = 내부 자료형
+```
+
+## 차원
+
+1차원  : 테스트에 주로 쓰임
+
+2차원 : 샘플 - 특성
+
+3차원 : 샘플 - 특성 - 시간대
+
+4차원  : 샘플, 높이, 넓이, 채널 / 색상 
+
+5차원 : 샘플, 높이, 넓이, 채널, 프레임 
+
+## 텐서 만들기
+
+초기화 되지 않은 텐서 만들기는 어렵지 않다.
+
+```python
+import torch
+
+# 크기가 3x4인 초기화되지 않은 빈 텐서 생성
+empty_tensor = torch.empty(3, 4)
+print(empty_tensor)
+```
+
+특정 값으로 초기화된 텐서도 만들 수 있다.
+
+```python
+import torch
+
+# 크기가 2x3인 0으로 초기화된 텐서 생성
+zeros_tensor = torch.zeros(2, 3)
+print(zeros_tensor)
+
+# 크기가 2x3인 1로 초기화된 텐서 생성
+ones_tensor = torch.ones(2, 3)
+print(ones_tensor)
+
+# 크기가 2x3인 7로 초기화된 텐서 생성
+filled_tensor = torch.full((2, 3), 7)
+print(filled_tensor)
+```
+
+안을 랜덤하게 채울 수도 있다.
+
+```python
+import torch
+
+# 크기가 2x3인 0과 1 사이의 랜덤한 값으로 초기화된 텐서 생성
+random_tensor = torch.rand(2, 3)
+print(random_tensor)
+```
+
+리스트나 배열로 부터 불러오는 것도 가능하다.
+
+```python
+import torch
+
+# 리스트로부터 텐서 생성
+list_data = [1, 2, 3]
+tensor_from_list = torch.tensor(list_data)
+print(tensor_from_list)
+
+# 리스트로부터 텐서 생성
+list_data = [1, 2, 3]
+tensor_from_list = torch.FloatTensor(list_data)
+tensor_from_list = torch.IntTensor(list_data)
+print(tensor_from_list)
+
+# 배열로부터 텐서 생성
+import numpy as np
+array_data = np.array([4, 5, 6])
+tensor_from_array = torch.tensor(array_data)
+print(tensor_from_array)
+```
+
+## 텐서 형변환
+
+자유롭게 형변환 가능
+
+```python
+tensor = torch.FloatTensor(list_data)
+
+tensor.short()
+tensor.long()
+tensor.int()
+tensor.half()
+tensor.float()
+
+tensor.dtype # 텐서의 데이터 타입
+```
+
+## 텐서 제공 함수
+
+- 기본
+    
+    ```python
+    tensor_res = tensor_1 + tensor_2
+    # [1.5621] = [1.0000] + [0.5621]
+    
+    torch.add(tensor_1, tensor_2, out = tensor_res)
+    tensor_res = torch.add(tensor_1, tensor_2)
+    
+    tensor_res = tensor_1 * 2
+    # [1.1242] = [0.5621] * 2
+    
+    tensor_1 = abs(tensor_1)
+    tensor_1 = floor(tensor_1)
+    tensor_1 = ceil(tensor_1)
+    tensor_1 = clamp(tensor_1, -0.5, 0.5)
+    
+    minV = tensor_1.min() # 최소
+    minV = tensor_1.max() # 최소
+    # 얘네는 dim 인자를 줄 수 있음.
+    # argmax, argmin으로 최대 최소값을 가진 인덱스를 넘김
+    
+    minV = tensor_1.mean() # 평균
+    minV = tensor_1.std() # 표준편차
+    minV = tensor_1.prod() # 곱
+    minV = tensor_1.sum() # 합
+    minV = tensor_1.unique(torch.tensor([1,2,3,1,2,3,125])) # 유니크한 값(??)
+    ```
+    
+- 심화
+    
+    ```python
+    y.add_(x)
+    y = x + y
+    # mul_, sub_, div_ 다 똑같음
+    
+    torch.matmul(x,y)
+    torch.mm(x,y)
+    # 내적
+    
+    torch.svd(x)
+    # singular value decomposition
+    # 세개의 텐서로 분리... U T V
+    
+    x[0, 0]
+    x[0, 1]
+    # 인덱서로 내부 아이템 접근
+    
+    x[:, 0]
+    x[:, 1]
+    # 슬라이싱도 적용됨
+    
+    x = torch.randn(4, 5) # [4,5]
+    x.view(20) # [20]
+    x.view(5, -1) # [5 , n] << n은 컴퓨터가 자동으로 정함
+    # 기본적으로 변경 전후의 원소수가 유지되어야함
+    
+    x.item()
+    # 원소가 단 하나만 있을 때 그걸 가져옴.
+    
+    x.squeeze()
+    # 차원이 축소됨.
+    
+    x.unsqueeze(dim)
+    # 입력한 차원을 기준으로 차원이 증가됨.
+    
+    res = torch.stack([x, y, z])
+    # 텐서들을 합쳐서 한단계 높은 텐서로 만듬
+    
+    res = torch.cat((a, b), dim = 0)
+    # stack이랑 같은데 특정 차원을 지정해서 합침
+    
+    t1, t2, t3 = torch.chunk(tensor, 3, dim = 1)
+    # 텐서를 n개로 나눌 때 사용.
+    
+    t1, t2 = torch.split(tensor, 3, dim = 1)
+    # chunk랑 같은데 n개씩 나눌 때 사용
+    ```
+    
+- Torch ←→Numpy
+    
+    ```python
+    a = torch.ones(7)
+    b = a.numpy()
+    
+    a.aad_(1)
+    # 이러고 a, b를 각각보면 둘 다 1씩 증가되어있음
+    # 같은 포인터 참조
+    
+    b = np.ones(7)
+    a = torch.from_numpy(a)
+    np.add(a, 1, out = a)
+    # 이러고 a, b를 각각보면 둘 다 1씩 증가되어있음
+    # 같은 포인터 참조
+    
+    # 근데 GPU 상에서는 또 별도의 메모리가 있어서 아니라고 한다...?
+    # 걍 이런 식으로 사용 ㄴ
+    
+    ```
+    
+
+# 자동 미분AutoGrad
+
+토치는 자동미분을 제공. 이는 코드를 어떻게 작성하여 실행하느냐에 따라 역전파가 정의된다.
+
+requires_grad 속성을 True로 설정하면 해당 텐서에서 이뤄지는 모든 연산을 추적하기 시작. .detach()를 호출해 연산기록으로부터 분리
+
+```python
+a.requires_grad_(True)
+# 바로 인플레이스 혈식으로 덮어써버림
+
+print(b.grad_fn) # 에 저장됨
+```
+
+## 기울기Gradient
+
+```python
+x = torch.ones(3, 3, requires_grad = True)
+# 111,111,111
+y = x + 5
+# 666,666,666
+z = y * y
+# 363636,363636,363636
+out = z.mean()
+# 36
+
+# 계산 완료 후 .backward()를 호출해 자동으로 역전파 계산이 가능.
+# grad 속성에 누적됨
+
+print(x)
+#111,111,111
+print(x.grad)
+#1.3331.3331.333, 1.3331.3331.333, 1.3331.3331.333
+#x.grad 에 미분값 저장
+```
+
+## 미분 & 역전파
+
+ [역전파?](https://www.notion.so/2943c3a227aa43d4b0e2f83a91ec9f1f?pvs=21) [더보기]
+
+```python
+x = torch.randn(3, requirers_grad = True)
+
+y = x * 2
+while y.data.norm() < 1000:
+	y = y * 2
+
+print (y)
+#1424, 12315, -12445, grad_fn=<MulBackward0> 여튼 랜덤값
+
+v = torch.tensor([0.1, 1.0, 0.0001], dtype = torch.float)
+y = backward(v) # v를 기준으로 y의 역전파 계산
+# backward 역전파
+# 주어진 손실에 대한 모델 파라미터의 그래디언트를 계산하는 과정
+# 이 함수를 호출하면 그래디언트가 계산.
+# 후에 해당 그래디언트를 사용하여 모델을 업데이트
+
+print(x.grad())
+# 기울기 반환
+
+with torch.no_grad() :
+# 해당 코드 블록 안에서는 연산 추적(requires_grad )이 잠시 꺼짐
+# 때문에 모델 평가Evaluation에서 유용
+
+# detach() 내용물은 같지만 require_grad가 다른 새로운 tensor를 가져올 때
+print(x.require_grad) # True
+y = x.detach()
+print(y.require_grad) # False
+print(x.eq(y).all()) # tensor(True)
+```
+
+## 자동 미분
+
+지금까지는 기능을 따로 살펴봐서 어따 쓰나 싶었을거다. 이제 이것들ㅇ르 사용해서 자동 미분의 흐름에 대해 설명,
+
+텐서에 대한 계산 흐름이 다음과 같을 때, a→b→c→out
+
+d * out / (d * a) = ?
+
+backward()를 통해  a←b←c←out를 계산하면 d * out / (d * a)값이 a.grad에 채워짐
+
+위와 같은 과정을 통해 우리는 해당 텐서가 연산을 거치면서 어떤 기울기를 갖게 됐는지 알 수 있다.
+
+# 데이터셋Dataset
+
+데이터 셋을 다루는 네임스페이스
+
+```python
+from torch.utils.data import Dataset, DataLoader
+```
+
+토치비전에는 파이토치가 제공하는 데이터셋들이 모여있는 패키지
+
+```python
+import torchvision.transforms as transforms
+from torchvision import datasets
+```
+
+DataLoader의 인자로 들어갈 transform(전처리)를 미리 정의할 수 있고, Compose(결합)를 진행해 리스트 안에서 순서대로 전처리 진행
+
+```python
+mnist_transform = transform.Compose(
+	[transforms.ToTensor(),
+	 transforms.Normalize(mean=(0.5,), std(1.0, ))
+])
+
+trainset = datasets.MNIST(root = '/content/',
+													train = True,
+													download = True,
+													transform=mnist_transform)
+testset= datasets.MNIST(root = '/content/',
+													train = False,
+													download = True,
+													transform=mnist_transform)
+```
+
+# 데이터로더DataLoader
+
+데이터 로더 생성. 데이터셋을 사용하기 전에 한번 거쳐줘야함…
+
+```python
+train_dataloader = DataLoader(training_data, batch_size=batch_size, shuffle = True, num_workers = 2)
+```
+
+```python
+# iterable(순회 가능한 객체)로 변환해주는 작업
+dataiter = iter(train_dataloader)
+images, labels = dataiter.next()
+
+print(images.shape) 
+# [배치 사이즈, ~,~,~] 
+
+print(labels.shape)
+# [배치 사이즈]
+```
+
+- 시각화도 해보고 싶다면…
+    
+    ```python
+    from torch.utils.data import Dataset, DataLoader
+    import torchvision.transforms as transforms
+    from torchvision import datasets
+    import matplotlib.pyplot as plt
+    
+    def TestDisplay ():
+    	mnist_transform = transforms.Compose(
+    		[transforms.ToTensor(),
+    		 transforms.Normalize(mean=(0.5,), std=(1.0, ))
+    	])
+    
+    	trainset = datasets.MNIST(root = '/content/',
+    														train = True,
+    														download = True,
+    														transform=mnist_transform)
+    
+    	train_dataloader = DataLoader(trainset , batch_size=8, shuffle = True, num_workers = 2)
+    
+    	# iterable(순회 가능한 객체)로 변환해주는 작업
+    	dataiter = iter(train_dataloader)
+    	images, labels = next(dataiter)
+    
+    	print(images.shape) 
+    	# [배치 사이즈, 1, 28, 28] 
+    
+    	print(labels.shape)
+    	# [배치 사이즈]
+    
+    	torch_image = nn.squeeze(images[0])
+    	#[28, 28]
+    
+    	figure = plt.figure(figsize = (12, 6))
+    	cols, rows = 4, 2
+    	for i in range(1, cols * rows + 1) :
+    		sample_idx = nn.randint(len(trainset), size=(1,)).item()
+    		img, label = trainset[sample_idx]
+    		figure.add_subplot(rows, cols, i)
+    		plt.title(label)
+    		plt.axis('off')
+    		plt.imshow(img.squeeze(), cmap = 'gray')
+    	plt.show()
+    	print("succeed")
+    
+    ```
+    
+
+# 레이어Layer
+
+```python
+import torch.nn as nn
+```
+
+신경망은 노드 > 레이어 > 모듈 > 모델로 구성됨.
+
+사실 노드까지는 신경 안 써도 되고 레이어는 x(x ≥ 1)개의 텐서를 입력 받아 y(y ≥ 1)개의 텐서를 출력하는구나 정도만 이해 ㄱㄱ
+
+```mermaid
+graph TD
+  node1--> layer2
+  node2--> layer2
+  node3--> layer2
+  node4--> layer2
+  layer1--> module2
+  layer2--> module2
+  layer3--> module2
+  layer4--> module2
+  module1--> model
+  module2--> model
+  module3--> model
+  module4--> model
+```
+
+## 모델 만들기
+
+토치에서는 모델을 상속 받는 클래스를 만드는 식으로 모델을 만든다. 텐서플로우가 생성자로 초기화 정보를 받고 컴파일해서 가져오는 식으로 받아온것과는 [모델 정의 > 모델 생성]에서 큰 결은 다르지 않다.
+
+```python
+class NeuralNetwork(nn.Module):
+     def __init__(self):
+         super().__init__()
+				 #밑에 두개 상속 없이 받은 변수인듯?
+         self.flatten = nn.Flatten()
+         self.linear_relu_stack = nn.Sequential(
+             nn.Linear(28*28, 512),
+             nn.ReLU(),
+             nn.Linear(512, 512),
+             nn.ReLU(),
+             nn.Linear(512, 10)
+         )
+
+     def forward(self, x):
+         x = self.flatten(x)
+         logits = self.linear_relu_stack(x)
+         return logits
+```
+
+## 레이어 종류
+
+- 레이어 시각화?
+    
+    간단하게 가중치를 시각화.
+    
+    - 더보기
+        
+        ```python
+        weight = layer.weight
+        print(weight.shape)
+        # 가중치(weight.shape) 텐서 구하기
+        # detach를 통해 꺼내줘야 numpy()변환이 가능.
+        
+        layer.detach()
+        layer.weight.numpy()
+        print(weight.shape)
+        # 시발 이게 뭔 코드임 도대체 진짜????
+        
+        plt.imshow(weight[0,0, :, :], 'gtay') # 'jet', 'gray'
+        plt.colorbar()
+        plt.show()
+        # 가중치 시각화
+        ```
+        
+    
+    이번엔 입력텐서, 레이어의 가중치, 출력텐서를 나란히 시각화 ㄱㄱ
+    
+    - 더보기
+        
+        ```python
+        mnist_transform = transforms.Compose(
+        	[transforms.ToTensor(),
+        	 transforms.Normalize(mean=(0.5,), std=(1.0, ))
+        ])
+        
+        trainset = datasets.MNIST(root = '/content/',
+        													train = True,
+        													download = True,
+        													transform=mnist_transform)
+        
+        train_dataloader = DataLoader(trainset , batch_size=8, shuffle = True, num_workers = 2)
+        
+        # iterable(순회 가능한 객체)로 변환해주는 작업
+        dataiter = iter(train_dataloader)
+        images, labels = next(dataiter)
+        
+        print(images.shape) 
+        # [배치 사이즈, 1, 28, 28] 
+        
+        print(labels.shape)
+        # [배치 사이즈]
+        
+        torch_image = torch.squeeze(images[0])
+        #[28, 28]
+        
+        layer = nn.Conv2d(in_channels = 1, out_channels = 20, kernel_size=5, stride=1)
+        weight = layer.weight.detach().numpy()
+        
+        print(images.shape) # 8 1 28 28
+        print(images[0].size()) # 1 28 28
+        
+        input_image = torch.squeeze(images[0])
+        print(input_image.size()) # 28 28
+        
+        input_data = torch.unsqueeze(images[0], dim = 0)
+        print(input_data.size()) # 1 1 28 28
+        
+        output_data = layer(input_data)
+        output_arr = output_data.detach().numpy()
+        print(output_arr.shape)  # 1 20 28 28
+        
+        plt.figure(figsize = (15,30))
+        
+        plt.subplot(131)
+        plt.title("input")
+        plt.imshow(input_image, 'gray')
+        
+        plt.subplot(132)
+        plt.title("weight")
+        plt.imshow(weight[0,0,:, :], 'gray')
+        
+        plt.subplot(133)
+        plt.title("output")
+        plt.imshow(output_arr[0,0,:,:], 'gray')
+        
+        plt.show()
+        ```
+        
+
+- nn.Linear(in_feature, out_feature)
+    
+    ```python
+    inp = torch.rands(128, 20)
+    print(inp ) # 128, 20
+    m = nn.Linear(20,30)
+    print(m)
+    
+    outp= m(inp )
+    print(outp)
+    print(outp.size) # 128, 30
+    ```
+    
+    선형 변환 수행. fully connected layer.
+    
+    입력 노드들이 모든 출력 노드들과 연결되는 계층.
+    
+    1d만 가능하므로 .view()를 통해 1d로 펼쳐줘야함.
+    
+    ```python
+    input_image # 1, 28, 28
+    flatten_image = input_image.view(1, 28 * 28)
+    flatten_image # 1, 784
+    ```
+    
+- nn.ReLU()
+    
+    비선형성, 기울기 소실 방지, 희소 활성화 torch.nn.funcional.relu()
+    
+    입력 특성 중 0 이하의 값을 0으로 만들어 양수값을 유지시킨다. 뭔소린지 이해가 안가지만 GPT는 (음수인 특성들이 0으로 죽어버림 > 네트워크 희소성 증가 > 표현력 향상)이라고 한다.
+    
+    dying ReLU라는 문제가 발생하기도 한다고 한다. 만약 학습 도중 문제가 생긴다면 한번쯤 의심해볼 법도?
+    
+    ```python
+    inputs = torch.randn(4,3,28,28).to(device)
+    print(inputs.shape) # 4 3 28 28
+    
+    layer = nn.Conv2d(3, 20, 5, 1).to(device)
+    output = F.relu(layer(inputs))
+    print(output.shape) # 4 20 24 24
+    
+    ```
+    
+- nn.Conv2d
+    
+    ```python
+    inp = torch.rands(20, 16, 50, 100)
+    print(inp) # 20, 16, 50, 100
+    m = nn.Concv2d(16,33, 3, stride = 2)
+    m = nn.Concv2d(16,33, (3, 5), stride = (2,1), padding = (4,2))
+    m = nn.Concv2d(16,33, (3, 5), stride = (2,1), padding = (4,2), dilation = (3, 1))
+    print(m)
+    
+    outp= m(inp)
+    print(outp)
+    print(outp.size) # 20, 33, 26, 100
+    
+    m = nn.Concv2d(in_channels = 1, out_channels = 20, kernel_size=5, stride=1)
+    ```
+    
+    2D 합성곱을 수행하는 레이어.
+    
+    이미지와 같은 2D 데이터에 주로 사용
+    
+    - int in_channels : 입력 데이터의 채널 수, RGB의 경우 3, 흑백의 경우 1
+    - int out_channels : 출력 데이터의 채널 수, 즉, 필터 개수 이 필터는 입력 데이터의 특징을  감지
+    - int kernel_size : 커널(필터)의 크기를 나타내는 정수 또는 튜플입니다. 예를 들어, (3, 3)은 3x3 크기의 필터를 의미합니다.
+    - int stride : 커널의 이동 간격을 나타내는 정수 또는 튜플입니다. 디폴트는 1입니다.
+    - int padding : 입력 주변에 추가되는 제로 패딩의 크기를 나타내는 정수 또는 튜플입니다. 디폴트는 0입니다.
+    
+- nn.funcional.max_pool2d
+    
+    풀링 레이어. torch.nn.MaxPool2d도 많이 사용.
+    
+    ```python
+    print(ouput.shape) # 1, 20 , 24, 24
+    
+    pool = nn.functional.max_pool2d(output, 2, 2)
+    print(pool.shape) # [1, 20, 12, 12]
+    # max_pool2은 입력 텐서를2,2크기씩 잘게 자른 뒤
+    # 각 4칸 중 가장 큰 값만 가져옴.
+    # 그것들로 새로운 그리드를 만들면 크기는 반띵된 것일거임
+    # 그래서 크기가 반으로 줄어든다...
+    
+    pool_arr = pool.numpy()
+    # weight가중치가 없기 떄문에 바로 numpy()변환 가능
+    print(pool_arr.shape) # [1, 20, 12, 12]
+    
+    ```
+    
+- nn.Flatten
+    
+    이미지나 다차원 데이터를 1차원으로 평탄화하는 역할을 한다.
+    
+
+## 손실 함수 종류
+
+PyTorch에서는 다양한 손실 함수(loss function)를 제공하고 있습니다. 손실 함수는 주어진 예측값과 실제 타겟 사이의 차이를 계산하며, 이 차이를 최소화하는 방향으로 모델을 학습시킵니다. 아래는 PyTorch에서 자주 사용되는 일부 손실 함수들입니다:
+
+1. **평균 제곱 오차 손실 함수 (Mean Squared Error, MSE)**:
+    
+    ```python
+    loss_fn = nn.MSELoss()
+    ```
+    
+    회귀 문제에서 사용되며, 예측값과 실제 타겟 간의 평균 제곱 오차를 계산합니다.
+    
+2. **크로스 엔트로피 손실 함수 (Cross-Entropy Loss)**:
+    
+    ```python
+    loss_fn = nn.CrossEntropyLoss()
+    ```
+    
+    다중 클래스 분류 문제에서 사용되며, 모델의 출력과 실제 클래스 간의 크로스 엔트로피 손실을 계산합니다.
+    
+3. **이진 크로스 엔트로피 손실 함수 (Binary Cross-Entropy Loss)**:
+    
+    ```python
+    loss_fn = nn.BCELoss()
+    ```
+    
+    이진 분류 문제에서 사용되며, 모델의 출력과 실제 이진 레이블 간의 이진 크로스 엔트로피 손실을 계산합니다.
+    
+4. **포아송 손실 함수 (Poisson Loss)**:
+    
+    ```python
+    loss_fn = nn.PoissonNLLLoss()
+    ```
+    
+    회귀 문제에서 사용되며, 포아송 분포의 음의 로그 우도 손실을 계산합니다.
+    
+5. **휴먼 텐서 손실 함수 (Hinge Embedding Loss)**:
+    
+    ```python
+    loss_fn = nn.HingeEmbeddingLoss()
+    ```
+    
+    이진 분류에서 사용되며, 이진 분류 모델이 맞는 클래스에 대해 높은 스코어를 갖도록 학습합니다.
+    
+6. **Triplet Margin Loss**:
+    
+    ```python
+    loss_fn = nn.TripletMarginLoss()
+    ```
+    
+    트리플릿 네트워크에서 사용되며, 양성 샘플과 음성 샘플 간의 거리를 제어하여 특정 마진 이내로 유지하도록 학습합니다.
+    
+
+이 외에도 다양한 손실 함수들이 있으며, 문제의 성격에 맞게 적절한 손실 함수를 선택하는 것이 중요합니다. PyTorch의 공식 문서에는 더 많은 손실 함수들과 각각의 사용법이 상세히 나와 있습니다.
+
+## 옵티마이저 종류
+
+PyTorch에서는 다양한 최적화 알고리즘을 제공하는 **`torch.optim`** 모듈을 사용하여 모델을 최적화할 수 있습니다. 몇 가지 주요한 최적화 알고리즘들은 다음과 같습니다:
+
+1. **확률적 경사 하강법 (Stochastic Gradient Descent, SGD)**:
+    
+    ```python
+    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
+    ```
+    
+    - **`lr`**: 학습률(learning rate)
+    - 가장 기본적인 최적화 알고리즘으로, 매개변수를 업데이트하는 데 현재 그래디언트 값에 학습률을 곱한 값을 사용합니다.
+2. **Adam 최적화 알고리즘**:
+    
+    ```python
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    ```
+    
+    - **`lr`**: 학습률(learning rate)
+    - 모멘텀 및 RMSProp을 결합한 알고리즘으로, 각 매개변수에 대한 적응형 학습률을 사용합니다.
+3. **Adagrad 최적화 알고리즘**:
+    
+    ```python
+    optimizer = torch.optim.Adagrad(model.parameters(), lr=learning_rate)
+    ```
+    
+    - **`lr`**: 학습률(learning rate)
+    - 각 매개변수에 대해 학습률을 조절하는데, 많이 업데이트된 매개변수에 대해서는 학습률을 감소시킵니다.
+4. **RMSProp 최적화 알고리즘**:
+    
+    ```python
+    optimizer = torch.optim.RMSprop(model.parameters(), lr=learning_rate)
+    ```
+    
+    - **`lr`**: 학습률(learning rate)
+    - 지수 가중 이동 평균을 사용하여 그래디언트 제곱의 이동 평균을 계산하고 이를 이용하여 매개변수를 업데이트합니다.
+5. **Adadelta 최적화 알고리즘**:
+    
+    ```python
+    optimizer = torch.optim.Adadelta(model.parameters(), rho=0.9)
+    ```
+    
+    - **`rho`**: 감쇠 계수(decay rate)
+    - Adagrad의 단점을 보완하기 위해 매개변수에 대한 이동 평균을 사용하는 최적화 알고리즘입니다.
+
+이 외에도 **`torch.optim`** 모듈에는 다양한 최적화 알고리즘이 포함되어 있습니다. 적절한 최적화 알고리즘은 문제에 따라 다르며, 실험을 통해 최적의 알고리즘과 하이퍼파라미터를 찾는 것이 일반적입니다.
+
+# 모듈과 모델Module & Model
+
+모듈은 레이어들을 가지고 있는 클래스다.
+
+## 모듈 생성
+
+nn.Module을 상속받는 식으로 정의한다.
+
+- nn.Module을 상속 받는 클래스 정의
+- __init**__**() : 모델에서 사용될 모듈과 활성화 함수 등을 정의
+- foward() : 모델에서 실행되어야하는 연산을 정의
+
+```python
+class MyModule(nn.Module) :
+	def __init__(self, inputs) :
+		super(Model, self).__init__()
+		self.layer = nn.Linear(inputs, 1)
+		self.activation = nn.Sigmoid()
+	def forwar(self, x) :
+		x = self.layer(x)
+		x = self.activation(x)
+		return x
+
+model = MyModule(1)
+print(list(model.children()))
+# linear(1, 1) sigmoid
+# 이런식으로 모듈을 까보는 것도 가능.
+
+```
+
+## Sequential 객체
+
+- nn.Sequential 객체로 그 안에 각 모듈을 순차적으로 실행.
+- __init**__**() 에서 사용할 네트워크 모델들을 nn.Sequential로 정의 가능
+- forward()에서 실행되어야할 계산을 가독성 높게 작성 가능
+
+```python
+self.layers = nn.Sequential(
+			nn.Conv2d(64, 30, 5),
+			nn.ReLU(True),
+			nn.MaxPool2d(2),
+		)
+```
+
+- 사용 예시
+    
+    ```python
+    class MyModel(nn.Module) :
+    	def __init__(self) :
+    		super(MyModel, self).__init__()
+    		self.layer1 = nn.Sequential(
+    			nn.Conv2d(3, 64, 5),
+    			nn.ReLU(True),
+    			nn.MaxPool2d(2),
+    		)
+    		self.layer2 = nn.Sequential(
+    			nn.Conv2d(64, 30, 5),
+    			nn.ReLU(True),
+    			nn.MaxPool2d(2),
+    		)
+    		self.layer3 = nn.Sequential(
+    			nn.Linear(30 * 5 * 5, 10, True),
+    			nn.ReLU(True)
+    		)
+    	def forwar(self, x) :
+    		x = self.layer1(x)
+    		x = self.layer2(x)
+    		x = x.view(x.shape[0], -1)
+    		x = self.layer3(x)
+    		return x
+    
+    model = _3_ModelAndModule.MyModel();
+    print(list(model.children()))
+    #출력 내용
+    
+    [Sequential(
+      (0): Conv2d(3, 64, kernel_size=(5, 5), stride=(1, 1))
+      (1): ReLU(inplace=True)
+      (2): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+    ), Sequential(
+      (0): Conv2d(64, 30, kernel_size=(5, 5), stride=(1, 1))
+      (1): ReLU(inplace=True)
+      (2): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+    ), Sequential(
+      (0): Linear(in_features=750, out_features=10, bias=True)
+      (1): ReLU(inplace=True)
+    )]
+    
+    print(list(model.modules()))
+    [MyModel(
+      (layer1): Sequential(
+        (0): Conv2d(3, 64, kernel_size=(5, 5), stride=(1, 1))
+        (1): ReLU(inplace=True)
+        (2): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+      )
+      (layer2): Sequential(
+        (0): Conv2d(64, 30, kernel_size=(5, 5), stride=(1, 1))
+        (1): ReLU(inplace=True)
+        (2): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+      )
+      (layer3): Sequential(
+        (0): Linear(in_features=750, out_features=10, bias=True)
+        (1): ReLU(inplace=True)
+      )
+    ), Sequential(
+      (0): Conv2d(3, 64, kernel_size=(5, 5), stride=(1, 1))
+      (1): ReLU(inplace=True)
+      (2): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+    ), Conv2d(3, 64, kernel_size=(5, 5), stride=(1, 1)), ReLU(inplace=True), MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False), Sequential(
+      (0): Conv2d(64, 30, kernel_size=(5, 5), stride=(1, 1))
+      (1): ReLU(inplace=True)
+      (2): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+    ), Conv2d(64, 30, kernel_size=(5, 5), stride=(1, 1)), ReLU(inplace=True), MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False), Sequential(
+      (0): Linear(in_features=750, out_features=10, bias=True)
+      (1): ReLU(inplace=True)
+    ), Linear(in_features=750, out_features=10, bias=True), ReLU(inplace=True)]
+    ```
+    
+
+## PreTrained
+
+파이토치 비전에서 제공하는 사전학습 모델
+
+필요하면 찾아보는 것도?
+
+## 손실 함수Loss Function
+
+손실 함수(Loss Function)는 모델의 예측값과 실제 타겟(레이블) 사이의 차이를 측정하는 함수입니다. 학습 중에 모델은 손실 함수의 값을 최소화하도록 학습됩니다. 손실 함수의 값이 작을수록 모델의 예측이 실제 타겟에 더 가까워지도록 학습이 진행됩니다.
+
+- 개요 더보기…
+    
+    손실 함수의 작동 방식은 다음과 같습니다:
+    
+    1. **모델의 예측과 실제 타겟 비교**:
+        - 모델이 입력 데이터를 받아 예측을 만듭니다.
+        - 이 예측값과 실제 타겟(레이블)을 손실 함수에 전달합니다.
+    2. **손실 값 계산**:
+        - 손실 함수는 모델의 예측과 실제 타겟 사이의 차이를 계산하여 하나의 숫자로 나타냅니다.
+        - 이 값이 얼마나 작거나 큰지는 모델이 얼마나 정확한지를 나타냅니다.
+    3. **모델 파라미터 업데이트**:
+        - 모델의 파라미터는 이 손실 값에 대한 그래디언트(기울기)를 계산합니다.
+        - 역전파 알고리즘을 통해 모델은 이 그래디언트에 따라 파라미터를 업데이트합니다.
+        - 이 업데이트는 손실 함수의 값을 줄이는 방향으로 이루어지므로, 모델이 예측을 개선하게 됩니다.
+        
+    
+    손실 함수의 선택은 주어진 문제에 따라 다르며, 회귀 문제에는 평균 제곱 오차(Mean Squared Error, MSE)와 같은 손실 함수가 일반적으로 사용되고, 분류 문제에는 크로스 엔트로피 손실 함수가 많이 사용됩니다. 손실 함수의 목적은 모델이 학습 데이터에서 더 정확한 예측을 하도록 유도하는 것이며, 이를 통해 모델이 일반화되어 새로운 데이터에도 좋은 성능을 내도록 합니다.
+    
+
+```python
+Criterion = nn.MSELoss()
+Criterion = mm.CrossEntropyLoss()
+```
+
+## 옵티마이저Optimizer
+
+# 과적합?
+
+과적합(Overfitting)은 모델이 훈련 데이터에 지나치게 적합되어, 훈련 데이터에는 잘 맞지만 새로운, 이전에 보지 못한 데이터에는 일반화 성능이 떨어지는 현상을 말합니다. 즉, 모델이 훈련 데이터의 노이즈나 특정 패턴을 학습하여 훈련 데이터에 대한 예측은 좋지만, 다른 데이터에 대한 예측이 부정확해지는 경우입니다.
+
+ex) 일반적인 AI : 나무는 훈련 때 본 것과 비슷한게 있다.
+
+ex) 과적합된 AI : 나무는 훈련 때 본 것만이 전부다.
+
+과적합은 모델이 훈련 데이터에 지나치게 맞춰져서 발생할 수 있으며, 주요 원인은 다음과 같습니다:
+
+1. **복잡한 모델 구조**: 모델이 너무 복잡하면 훈련 데이터에 민감하게 학습할 수 있으며, 훈련 데이터의 노이즈까지 학습할 가능성이 높아집니다.
+2. **훈련 데이터의 부족**: 훈련 데이터가 부족하면 모델이 훈련 데이터에 대해 과도하게 적합될 수 있습니다.
+3. **학습 과정의 길이**: 학습 과정을 지나치게 길게 진행하면 모델이 훈련 데이터에 대해 계속해서 적합되어 갈 수 있습니다.
+
+과적합이 발생하면 모델이 훈련 데이터에 대한 성능은 높지만 실제 환경에서의 성능이 낮아질 수 있습니다. 이를 방지하거나 완화하기 위해 다음과 같은 방법들을 사용할 수 있습니다:
+
+1. **정규화(Regularization)**: 손실 함수에 정규화 항을 추가하여 모델 파라미터의 크기를 제한하거나, 드롭아웃과 같은 기법을 사용하여 모델을 정규화합니다.
+2. **더 많은 데이터 수집**: 더 많은 다양한 데이터를 사용하여 모델이 일반적인 패턴을 학습하도록 합니다.
+3. **더 단순한 모델 구조**: 복잡한 모델 대신에 간단한 모델을 선택하여 사용합니다.
+4. **조기 종료(Early Stopping)**: 모델이 훈련 데이터에 과적합되기 전에 학습을 종료합니다.
+5. **교차 검증(Cross-validation)**: 훈련 데이터와 검증 데이터를 나누어 모델을 평가하고 조절합니다.
+
+# 손실 함수?
+
+손실 함수(Loss Function)는 모델의 예측값과 실제 타겟(레이블) 사이의 차이를 측정하는 함수입니다. 학습 중에 모델은 손실 함수의 값을 최소화하도록 학습됩니다. 손실 함수의 값이 작을수록 모델의 예측이 실제 타겟에 더 가까워지도록 학습이 진행됩니다.
+
+손실 함수의 작동 방식은 다음과 같습니다:
+
+1. **모델의 예측과 실제 타겟 비교**:
+    - 모델이 입력 데이터를 받아 예측을 만듭니다.
+    - 이 예측값과 실제 타겟(레이블)을 손실 함수에 전달합니다.
+2. **손실 값 계산**:
+    - 손실 함수는 모델의 예측과 실제 타겟 사이의 차이를 계산하여 하나의 숫자로 나타냅니다.
+    - 이 값이 얼마나 작거나 큰지는 모델이 얼마나 정확한지를 나타냅니다.
+3. **모델 파라미터 업데이트**:
+    - 모델의 파라미터는 이 손실 값에 대한 그래디언트(기울기)를 계산합니다.
+    - 역전파 알고리즘을 통해 모델은 이 그래디언트에 따라 파라미터를 업데이트합니다.
+    - 이 업데이트는 손실 함수의 값을 줄이는 방향으로 이루어지므로, 모델이 예측을 개선하게 됩니다.
+
+손실 함수의 선택은 주어진 문제에 따라 다르며, 회귀 문제에는 평균 제곱 오차(Mean Squared Error, MSE)와 같은 손실 함수가 일반적으로 사용되고, 분류 문제에는 크로스 엔트로피 손실 함수가 많이 사용됩니다. 손실 함수의 목적은 모델이 학습 데이터에서 더 정확한 예측을 하도록 유도하는 것이며, 이를 통해 모델이 일반화되어 새로운 데이터에도 좋은 성능을 내도록 합니다.
+
+# 선형 회귀?
+
+선형 회귀(Linear Regression)는 통계학과 머신러닝에서 사용되는 예측 모델 중 하나로, 종속 변수와 한 개 이상의 독립 변수 간의 관계를 모델링하는 데 사용됩니다. 주로 수치형 데이터에 대한 예측을 수행하는 데에 활용되며, 직선(선형 함수)으로 표현될 수 있는 데이터에 적용됩니다.
+
+선형 회귀 문제에서 중요한 개념은 다음과 같습니다:
+
+1. **종속 변수(응답 변수, Dependent Variable)**: 예측하려는 대상 변수입니다. 이 값이 모델을 통해 예측하고자 하는 값입니다.
+2. **독립 변수(설명 변수, Independent Variable)**: 종속 변수에 영향을 미치는 변수들로, 모델의 입력값이 됩니다. 선형 회귀에서는 하나 이상의 독립 변수가 사용될 수 있습니다.
+3. **선형 함수(Linear Function)**: 모델이 예측을 수행하는 함수는 선형 함수입니다. 간단하게는 직선의 방정식을 사용하거나, 다중 선형 회귀에서는 여러 개의 변수를 고려한 선형 함수를 사용합니다.
+4. **오차(잔차, Residuals)**: 실제 종속 변수 값과 모델의 예측 값 간의 차이를 나타내는 값입니다. 선형 회귀 모델은 이 오차를 최소화하는 방향으로 학습됩니다.
+5. **최소제곱법(Least Squares Method)**: 선형 회귀에서 가장 일반적으로 사용되는 방법 중 하나로, 오차의 제곱을 최소화하여 모델을 학습합니다.
+
+일반적으로 선형 회귀는 데이터가 주어졌을 때, 그 데이터를 가장 잘 나타내는 선형 관계를 찾는 문제로 이해됩니다. 예를 들어, 주택 가격 예측에서 방의 개수, 위치, 면적 등의 독립 변수가 있을 때, 이러한 변수들과 주택 가격 간의 선형 관계를 모델링하는 것이 선형 회귀의 한 예입니다.
+
+# 역전파?
